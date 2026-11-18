@@ -1,0 +1,56 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ghost-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ghost-demo-password-change-me
+      MYSQL_ROOT_PASSWORD: ghost-demo-root-password-change-me
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - ghost-internal
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  ghost:
+    image: ghost:5-alpine
+    container_name: ghost-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:2368:2368"
+    environment:
+      url: http://localhost:2368
+      database__client: mysql
+      database__connection__host: mysql
+      database__connection__port: 3306
+      database__connection__user: ghost
+      database__connection__password: ghost-demo-password-change-me
+      database__connection__database: ghost
+    volumes:
+      - ghost-content:/var/lib/ghost/content
+    networks:
+      - ghost-internal
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:2368',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mysql-data:
+  ghost-content:
+
+networks:
+  ghost-internal:
+    internal: true
